@@ -287,6 +287,7 @@ __pycache__/
 *.odx.cs
 *.xsd.cs
 
+# Custom
 Games16
 SFML-2.5.1-windows-vc15-64-bit
 SFML-2.5.1-windows-vc15-64-bit.zip

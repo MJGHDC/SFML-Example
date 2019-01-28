@@ -4,9 +4,10 @@
 #include <random>
 #include <time.h>
 
-constexpr int HEIGHT = 20;
-constexpr int WIDTH = 10;
-constexpr int BLOCK_SIZE = 4;
+constexpr size_t HEIGHT = 20;
+constexpr size_t WIDTH = 10;
+constexpr size_t BLOCK_SIZE = 4;
+constexpr float BLOCK_SPEED = 0.5f;
 
 enum keyboardEvent
 {
@@ -21,7 +22,7 @@ struct Point
 {
 	int x;
 	int y;
-} moveBlock[BLOCK_SIZE], fixedBlock[BLOCK_SIZE];;
+} moveBlock[BLOCK_SIZE], prevMoveBlock[BLOCK_SIZE];;
 
 int figures[7][4] =
 {
@@ -38,11 +39,11 @@ bool check()
 {
 	for (int i = 0; i < BLOCK_SIZE; ++i)
 	{
-		if (moveBlock[i].x < 0 || moveBlock[i].x >= WIDTH || moveBlock[i].y >= HEIGHT)
+		if (moveBlock[i].x < 0 || moveBlock[i].x >= WIDTH || moveBlock[i].y >= HEIGHT) // 경계지점 체크
 		{
 			return false;
 		}
-		else if (field[moveBlock[i].y][moveBlock[i].x])
+		else if (field[moveBlock[i].y][moveBlock[i].x]) // 이미 놓여진 블록 체크
 		{
 			return false;
 		}
@@ -69,6 +70,7 @@ int KeyboardEvent(sf::Event event)
 		eventFlag = keyboardEvent::Right;
 		break;
 	default:
+		eventFlag = 100;
 		break;
 	}
 
@@ -98,33 +100,35 @@ int main()
 	int dx = 0;
 	bool rotate = false;
 	float timer = 0.0f;
-	float delay = 0.3f;
+	float delay = BLOCK_SPEED;
 
 	int blockSelect = rand(mersenne);
 	int blockColor = rand(mersenne);
-
-	for (int i = 0; i < BLOCK_SIZE; ++i)
+	for (size_t i = 0; i < BLOCK_SIZE; ++i)
 	{
 		moveBlock[i].x = figures[blockSelect][i] % 2;
 		moveBlock[i].y = figures[blockSelect][i] / 2;
 	}
 
-	while (window.isOpen())
+	while (true == window.isOpen())
 	{
 		timer += clock.restart().asSeconds();
 
+		// 키보드 이벤트 감지
 		sf::Event event;
-		while (window.pollEvent(event))
+		while (true == window.pollEvent(event))
 		{
 			switch (event.type)
 			{
 			case sf::Event::KeyPressed:
-				//blockSelect = rand(mersenne);
-				blockColor = rand(mersenne);
 				dx = KeyboardEvent(event);
 				if (0 == dx)
 				{
 					rotate = true;
+				}
+				else if (100 == dx)
+				{
+					dx = 0;
 				}
 
 				break;
@@ -139,24 +143,120 @@ int main()
 			}
 
 		}
-
-
-		for (int i = 0; i < BLOCK_SIZE; ++i)
+		if (true == sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
 		{
-			fixedBlock[i] = moveBlock[i];
+			delay = 0.05f;
+		}
+
+		// 블럭 좌우 이동 및 경계 체크
+		for (size_t i = 0; i < BLOCK_SIZE; ++i)
+		{
+			prevMoveBlock[i] = moveBlock[i];
 			moveBlock[i].x += dx;
 		}
+		if (false == check())
+		{
+			for (size_t i = 0; i < BLOCK_SIZE; ++i)
+			{
+				moveBlock[i] = prevMoveBlock[i];
+			}
+		}
+
+		// 회전 및 경계 체크
+		if (true == rotate)
+		{
+			Point centerBlock = moveBlock[1]; // 회전을 시킬 중심축 위치
+			for (size_t i = 0; i < BLOCK_SIZE; ++i)
+			{ // 머리가 멍청해서 수학적 증명을 못하겠다.
+				int x = moveBlock[i].y - centerBlock.y;
+				int y = moveBlock[i].x - centerBlock.x;
+				moveBlock[i].x = centerBlock.x - x;
+				moveBlock[i].y = centerBlock.y + y;
+			}
+
+			if (false == check())
+			{
+				for (size_t i = 0; i < BLOCK_SIZE; ++i)
+				{
+					moveBlock[i] = prevMoveBlock[i];
+				}
+			}
+		}
+
+		//  블럭 아래로 이동 및 경계 체크
+		if (timer > delay)
+		{
+			for (int i = 0; i < 4; i++)
+			{
+				prevMoveBlock[i] = moveBlock[i];
+				moveBlock[i].y += 1;
+			}
+
+			if (false == check())
+			{
+				for (int i = 0; i < 4; i++) // 아래쪽 끝에 닿았을때 혹은 블록에 닿았을때 그 정보를 기억해둔다.
+				{
+					field[prevMoveBlock[i].y][prevMoveBlock[i].x] = blockColor;
+				}
+				// 시작 지점으로 초기화
+				blockColor = rand(mersenne);
+				blockSelect = rand(mersenne);
+				for (size_t i = 0; i < BLOCK_SIZE; ++i)
+				{
+					moveBlock[i].x = figures[blockSelect][i] % 2;
+					moveBlock[i].y = figures[blockSelect][i] / 2;
+				}
+			}		
+
+			timer = 0;
+		}		
+
+		// 블럭라인 체크 및 폭파
+		int k = HEIGHT - 1;
+		for (int i = k; i > 0; --i)
+		{
+			int count = 0;
+			for (size_t j = 0; j < WIDTH; ++j)
+			{
+				if (field[i][j] > 0)
+				{
+					++count;
+				}
+				field[k][j] = field[i][j];
+			}
+			if (count < WIDTH)
+			{
+				--k;
+			}
+		}
+
+		// 이동 정보값 상태 초기화
 		dx = 0;
 		rotate = false;
-		// draw
-		window.clear(sf::Color::White);
-		//for (int i = 0; i < BLOCK_SIZE; ++i)
-		//{
-		//	moveBlock[i].x = figures[blockSelect][i] % 2;
-		//	moveBlock[i].y = figures[blockSelect][i] / 2;
-		//}
+		delay = BLOCK_SPEED;
 		
-		for (int i = 0; i < BLOCK_SIZE; ++i)
+		// 그리기
+		window.clear(sf::Color::White);
+		window.draw(background);
+
+		for (size_t i = 0; i < HEIGHT; ++i)
+		{
+			for (size_t j = 0; j < WIDTH; ++j)
+			{
+				if (field[i][j] == 0)
+				{
+					continue;
+				}					
+				block.setTextureRect(sf::IntRect(field[i][j] * 18, 0, 18, 18));
+				block.setPosition(j * 18, i * 18);
+
+				block.move(28, 31); 
+				window.draw(block);
+			}
+		}
+			
+
+		for (size_t i = 0; i < BLOCK_SIZE; ++i)
 		{
 			block.setTextureRect(sf::IntRect(blockColor * 18, 0, 18, 18));
 			block.setPosition(static_cast<float>(moveBlock[i].x * 18), static_cast<float>(moveBlock[i].y * 18));
@@ -168,7 +268,9 @@ int main()
 		//window.draw(block);
 		//window.draw(background);
 		//window.draw(frame);
-		window.display();
+		window.draw(frame);
+		window.display(); // 이 함수가 호출이 되어야 최종적으로 그려진다.
+		window.setFramerateLimit(60); // 프레임 설정
 	}
 
 	return 0;
